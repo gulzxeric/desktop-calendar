@@ -6,7 +6,7 @@
 
 双击 `dist\DesktopTodo.exe`。需要放在桌面时，可右键该文件并选择“发送到 → 桌面快捷方式”。发布版包含运行时，不需要安装 .NET、Python 或 Node。
 
-默认嵌入 Windows 桌面层，打开其他软件时会被遮住。可通过托盘图标找回：双击图标会临时打开普通窗口，点击「放回桌面」可重新嵌入桌面层。桌面状态下可点「弹出窗口」进入普通窗口。
+默认嵌入 Windows 桌面图标层，打开其他软件时会被遮住。点击任务栏右端的「显示桌面」后，日历仍会留在桌面上；主日历和弹出的编辑、设置窗口都不会占用任务栏按钮。托盘图标可用于新增待办、打开设置、确保日历仍在桌面层或退出程序。
 
 ## 使用
 
@@ -44,7 +44,7 @@
 
 提醒要求程序保持运行，电脑未关机；实际通知显示受 Windows 通知设置影响。错过的提醒会在程序下一次运行时提示。程序不会定时唤醒电脑。
 
-桌面层使用 Explorer 桌面宿主。已在当前 Windows 机器验证父窗口归属与可见性；`Win+D` 的实际按键交互、多显示器热插拔及 Explorer 重启仍需使用中验证。异常时可双击托盘图标打开普通窗口继续使用。
+桌面层使用 Explorer 桌面宿主。程序会检查窗口归属，并在 Explorer 重启或窗口被意外最小化后恢复桌面挂载。多显示器热插拔仍需在对应设备上验证。
 
 ## 开发与验证
 
@@ -53,6 +53,7 @@
 ```powershell
 dotnet build -c Release
 .\bin\Release\net10.0-windows\DesktopTodo.exe --self-test --report test-results.txt
+.\bin\Release\net10.0-windows\DesktopTodo.exe --window-contract-self-test --report window-contract-test-results.txt
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
 

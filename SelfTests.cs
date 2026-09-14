@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -10,6 +11,38 @@ namespace DesktopTodo;
 
 public static class SelfTests
 {
+    public static int RunWindowContract()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "ShiriWindowTests-" + Guid.NewGuid().ToString("N"));
+        string report = Program.Option("--report") ?? Path.Combine(AppContext.BaseDirectory, "window-contract-test-results.txt");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var store = new Store(root);
+            store.Data.Settings.Desktop = false;
+            var window = new MainWindow(store, true);
+            window.Show();
+            window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var hwnd = new WindowInteropHelper(window).Handle;
+            long exStyle = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlExStyle).ToInt64();
+            bool hiddenFromTaskbar = !window.ShowInTaskbar
+                && (exStyle & DesktopHost.WsExAppWindow) == 0
+                && (exStyle & DesktopHost.WsExToolWindow) != 0;
+            File.WriteAllText(report,
+                $"{(hiddenFromTaskbar ? "PASS" : "FAIL")} ShowInTaskbar={window.ShowInTaskbar}; exStyle=0x{exStyle:X}; APPWINDOW={(exStyle & DesktopHost.WsExAppWindow) != 0}; TOOLWINDOW={(exStyle & DesktopHost.WsExToolWindow) != 0}");
+            window.Close();
+            app.Shutdown();
+            return hiddenFromTaskbar ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(report, "FAIL " + ex);
+            return 1;
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
     public static int RunResize()
     {
         string root = Path.Combine(Path.GetTempPath(), "ShiriResizeTests-" + Guid.NewGuid().ToString("N"));

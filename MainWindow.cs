@@ -27,7 +27,6 @@ public sealed class MainWindow : Window
     private string filter = "";
     private Preferences Pref => store.Data.Settings;
     private string view;
-    public bool IsOnDesktop => attached;
     public bool IsCompactLayout => compact;
     public DateTime SelectedDate => selected;
     public void FocusDate(DateTime date) { selected = displayed = date; Build(); }
@@ -36,7 +35,7 @@ public sealed class MainWindow : Window
         store = data; testWindow = windowed; view = Pref.View;
         Title = "拾日 · 桌面日历";
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; AllowsTransparency = true;
-        Background = Brushes.Transparent; ShowInTaskbar = windowed || !Pref.Desktop;
+        Background = Brushes.Transparent; ShowInTaskbar = false;
         MinWidth = LayoutRules.MinimumWidth; MinHeight = LayoutRules.MinimumHeight;
         Width = Pref.Width; Height = Pref.Height; Opacity = Pref.Opacity;
         var area = SystemParameters.WorkArea;
@@ -48,12 +47,14 @@ public sealed class MainWindow : Window
         Build();
         SourceInitialized += (_, _) =>
         {
+            DesktopHost.HideFromTaskbar(this);
             // Establish the parent before the first WPF composition surface.
-            if (Pref.Desktop && !testWindow)
-            {
-                attached = DesktopHost.Attach(this);
-                if (!attached) ShowInTaskbar = true;
-            }
+            if (!testWindow) attached = DesktopHost.Attach(this);
+        };
+        StateChanged += (_, _) =>
+        {
+            if (attached && WindowState == WindowState.Minimized)
+                Dispatcher.BeginInvoke(EnsureDesktopVisible, DispatcherPriority.Send);
         };
         ContentRendered += (_, _) =>
         {
@@ -72,7 +73,6 @@ public sealed class MainWindow : Window
         {
             if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.N) { Edit(null, selected); e.Handled = true; }
             if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { Undo(); e.Handled = true; }
-            if (e.Key == Key.Escape && !testWindow) SetDesktop(true);
         };
         Closed += (_, _) => SavePlacement();
     }
@@ -156,8 +156,6 @@ public sealed class MainWindow : Window
         brand.MouseLeftButtonUp += (_, _) => { dragging = false; brand.ReleaseMouseCapture(); SavePlacement(); };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(buttons, 1); bar.Children.Add(buttons);
-        var mode = Theme.Button(attached ? "弹出窗口" : "放回桌面", (_, _) => SetDesktop(!attached));
-        mode.ToolTip = attached ? "暂时变成普通窗口，方便移动和缩放" : "将日历放回桌面图标层"; buttons.Children.Add(mode);
         buttons.Children.Add(Theme.Button("设置", (_, _) => SettingsDialog()));
         buttons.Children.Add(Theme.Button("＋ 新建", (_, _) => Edit(null, selected), true));
     }
@@ -426,18 +424,39 @@ public sealed class MainWindow : Window
         panel.Children.Add(Theme.Button("跳转", (_, _) => { if (date.SelectedDate == null) return; selected = displayed = date.SelectedDate.Value; dialog.Close(); Build(); }, true)); dialog.ShowDialog();
     }
 
-    public void SetDesktop(bool enable, bool persist = true)
-    {
-        if (enable == attached) return;
-        ((Program)Application.Current).ChangeMode(enable, persist);
-    }
     public void CheckDesktop()
     {
-        if (testWindow || !attached) return;
+        if (testWindow) return;
         var hwnd = new WindowInteropHelper(this).Handle;
         if (!DesktopHost.IsWindow(hwnd)) return;
-        if (DesktopHost.GetParent(hwnd) != DesktopHost.FindDesktop())
-            ((Program)Application.Current).ChangeMode(true, false);
+        DesktopHost.HideFromTaskbar(this);
+        var desktop = DesktopHost.FindDesktop();
+        if (!attached)
+        {
+            if (desktop != IntPtr.Zero) { attached = DesktopHost.Attach(this); if (attached) Build(); }
+            return;
+        }
+        if (desktop != IntPtr.Zero && DesktopHost.GetParent(hwnd) != desktop)
+        {
+            ((Program)Application.Current).RecreateDesktop();
+            return;
+        }
+        if (WindowState == WindowState.Minimized || DesktopHost.IsIconic(hwnd)) EnsureDesktopVisible();
+    }
+    public void EnsureDesktopVisible()
+    {
+        if (testWindow) return;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (hwnd == IntPtr.Zero || !DesktopHost.IsWindow(hwnd)) return;
+        DesktopHost.HideFromTaskbar(this);
+        if (!attached)
+        {
+            attached = DesktopHost.Attach(this);
+            if (!attached) return;
+            Build();
+        }
+        WindowState = WindowState.Normal;
+        DesktopHost.RestoreVisible(this);
     }
     public void CheckDate() { if (lastToday != DateTime.Today) { lastToday = DateTime.Today; Build(); } }
     public void SavePlacement()
@@ -453,8 +472,9 @@ public sealed class MainWindow : Window
     {
         if (!Program.Arguments.Contains("--diagnostics")) return;
         var hwnd = new WindowInteropHelper(this).Handle;
+        long exStyle = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlExStyle).ToInt64();
         File.WriteAllText(Path.Combine(store.DirectoryPath, "window-diagnostics.json"), System.Text.Json.JsonSerializer.Serialize(new
-        { hwnd = hwnd.ToInt64(), parent = DesktopHost.GetParent(hwnd).ToInt64(), desktop = DesktopHost.FindDesktop().ToInt64(), visible = DesktopHost.IsWindowVisible(hwnd), attached, width = ActualWidth, height = ActualHeight, style = DesktopHost.GetWindowLongPtr(hwnd, -16).ToInt64() }, Store.Json));
+        { hwnd = hwnd.ToInt64(), parent = DesktopHost.GetParent(hwnd).ToInt64(), desktop = DesktopHost.FindDesktop().ToInt64(), visible = DesktopHost.IsWindowVisible(hwnd), iconic = DesktopHost.IsIconic(hwnd), attached, showInTaskbar = ShowInTaskbar, width = ActualWidth, height = ActualHeight, style = DesktopHost.GetWindowLongPtr(hwnd, -16).ToInt64(), exStyle, appWindow = (exStyle & DesktopHost.WsExAppWindow) != 0, toolWindow = (exStyle & DesktopHost.WsExToolWindow) != 0 }, Store.Json));
     }
     private void Capture(string path)
     {

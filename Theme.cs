@@ -49,10 +49,15 @@ public static class Theme
         Background = Cell, Foreground = Ink, CaretBrush = Ink, BorderBrush = Line,
         BorderThickness = new Thickness(1), Padding = new Thickness(10), Margin = new Thickness(0, 6, 0, 12)
     };
-    public static Window Dialog(string title, double width, double height) => new()
+    public static Window Dialog(string title, double width, double height)
     {
-        Title = title, Width = width, Height = height, Background = Bg, Foreground = Ink,
-        FontFamily = new FontFamily("Microsoft YaHei UI"), WindowStartupLocation = WindowStartupLocation.CenterScreen,
-        ResizeMode = ResizeMode.NoResize, ShowInTaskbar = true
-    };
+        var dialog = new Window
+        {
+            Title = title, Width = width, Height = height, Background = Bg, Foreground = Ink,
+            FontFamily = new FontFamily("Microsoft YaHei UI"), WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false
+        };
+        dialog.SourceInitialized += (_, _) => DesktopHost.HideFromTaskbar(dialog);
+        return dialog;
+    }
 }

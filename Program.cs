@@ -23,6 +23,7 @@ public sealed class Program : Application
     public static int Main(string[] args)
     {
         Arguments = args;
+        if (args.Contains("--window-contract-self-test")) return SelfTests.RunWindowContract();
         if (args.Contains("--resize-self-test")) return SelfTests.RunResize();
         if (args.Contains("--self-test")) return SelfTests.Run();
         // Layered WPF windows reparented into Explorer need a software surface:
@@ -72,8 +73,7 @@ public sealed class Program : Application
             Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? System.Drawing.SystemIcons.Application };
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(Reveal);
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("打开日历窗口", null, (_, _) => Dispatcher.Invoke(Reveal));
-        menu.Items.Add("回到桌面层", null, (_, _) => Dispatcher.Invoke(() => { OpenCalendar(); calendar!.SetDesktop(true); }));
+        menu.Items.Add("确保日历在桌面层", null, (_, _) => Dispatcher.Invoke(Reveal));
         menu.Items.Add("新增今日待办", null, (_, _) => Dispatcher.Invoke(() => { OpenCalendar(); calendar!.Edit(null, DateTime.Today); }));
         menu.Items.Add("设置与备份", null, (_, _) => Dispatcher.Invoke(() => { OpenCalendar(); calendar!.SettingsDialog(); }));
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -93,22 +93,19 @@ public sealed class Program : Application
         created.Closed += (_, _) => { if (calendar == created) calendar = null; };
         created.Show();
     }
-    public void ChangeMode(bool desktop, bool persist)
+    public void RecreateDesktop()
     {
         // A layered WPF render target caches its original native parent. Recreate
-        // the surface when switching modes rather than reusing a stale surface.
+        // the surface after Explorer replaces the desktop host.
         DateTime? selected = calendar?.SelectedDate;
         calendar?.SavePlacement();
-        if (persist) { store.Data.Settings.Desktop = desktop; store.Save(); }
         calendar?.Close();
-        CreateCalendar(!desktop, selected);
-        if (!desktop) calendar!.Activate();
+        CreateCalendar(false, selected);
     }
     public void Reveal()
     {
         OpenCalendar();
-        if (calendar!.IsOnDesktop) ChangeMode(false, false);
-        calendar!.Show(); calendar.WindowState = WindowState.Normal; calendar.Activate();
+        calendar!.EnsureDesktopVisible();
     }
     public void Quit()
     {
