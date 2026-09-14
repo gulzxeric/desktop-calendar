@@ -20,7 +20,7 @@ public sealed class MainWindow : Window
     private DateTime selected = DateTime.Today, displayed = DateTime.Today, lastToday = DateTime.Today;
     private Grid root = null!, body = null!;
     private TextBlock status = null!;
-    private bool attached, dragging, initialRendered, compact;
+    private bool attached, revealed, dragging, initialRendered, compact;
     private DesktopHost.POINT dragStart;
     private DesktopHost.RECT startRect;
     private readonly bool testWindow;
@@ -28,6 +28,7 @@ public sealed class MainWindow : Window
     private Preferences Pref => store.Data.Settings;
     private string view;
     public bool IsCompactLayout => compact;
+    public bool IsRevealed => revealed;
     public DateTime SelectedDate => selected;
     public void FocusDate(DateTime date) { selected = displayed = date; Build(); }
     public MainWindow(Store data, bool windowed)
@@ -157,6 +158,12 @@ public sealed class MainWindow : Window
         brand.MouseLeftButtonUp += (_, _) => { dragging = false; brand.ReleaseMouseCapture(); SavePlacement(); };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(buttons, 1); bar.Children.Add(buttons);
+        if (revealed)
+        {
+            var back = Theme.Button("回到桌面", (_, _) => ReturnToDesktop());
+            back.ToolTip = "放回桌面图标层，其他窗口会遮住日历";
+            buttons.Children.Add(back);
+        }
         buttons.Children.Add(Theme.Button("设置", (_, _) => SettingsDialog()));
         buttons.Children.Add(Theme.Button("＋ 新建", (_, _) => Edit(null, selected), true));
     }
@@ -431,6 +438,11 @@ public sealed class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         if (!DesktopHost.IsWindow(hwnd)) return;
         DesktopHost.HideFromTaskbar(this);
+        if (revealed)
+        {
+            if (WindowState == WindowState.Minimized || DesktopHost.IsIconic(hwnd)) EnsureDesktopVisible();
+            return;
+        }
         bool wasAttached = attached;
         if (WindowState == WindowState.Minimized || DesktopHost.IsIconic(hwnd)) WindowState = WindowState.Normal;
         attached = DesktopHost.PlaceOnDesktop(this);
@@ -443,9 +455,28 @@ public sealed class MainWindow : Window
         if (hwnd == IntPtr.Zero || !DesktopHost.IsWindow(hwnd)) return;
         DesktopHost.HideFromTaskbar(this);
         WindowState = WindowState.Normal;
-        bool wasAttached = attached;
+        if (revealed) DesktopHost.BringToFront(this);
+        else
+        {
+            bool wasAttached = attached;
+            attached = DesktopHost.PlaceOnDesktop(this);
+            if (attached != wasAttached) Build();
+        }
+    }
+    public void ShowFromTray()
+    {
+        revealed = true;
+        Show();
+        WindowState = WindowState.Normal;
+        Build();
+        DesktopHost.BringToFront(this);
+        Activate();
+    }
+    public void ReturnToDesktop()
+    {
+        revealed = false;
         attached = DesktopHost.PlaceOnDesktop(this);
-        if (attached != wasAttached) Build();
+        Build();
     }
     public void CheckDate() { if (lastToday != DateTime.Today) { lastToday = DateTime.Today; Build(); } }
     public void SavePlacement()

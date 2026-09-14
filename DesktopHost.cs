@@ -16,6 +16,8 @@ public static class DesktopHost
     public const long WsChild = 0x40000000L;
     public const long WsPopup = 0x80000000L;
     public const uint GwHwndNext = 2;
+    public const uint GwHwndPrev = 3;
+    public static readonly IntPtr HwndBottom = new(1);
     public delegate bool EnumProc(IntPtr hwnd, IntPtr parameter);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowEx(IntPtr parent, IntPtr after, string? className, string? title);
@@ -25,6 +27,7 @@ public static class DesktopHost
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd, uint command);
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr hwnd, int command);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")] public static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)] static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
     [DllImport("user32.dll", SetLastError = true)] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
@@ -59,9 +62,12 @@ public static class DesktopHost
         if (GetParent(hwnd) != IntPtr.Zero) return false;
         if (IsIconic(hwnd)) ShowWindow(hwnd, 9);
         ShowWindow(hwnd, 4);
-        // Insert directly above Explorer. Normal application windows remain above
-        // the calendar, while Show Desktop leaves this tool window visible.
-        return SetWindowPos(hwnd, desktop, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040);
+        // hWndInsertAfter inserts below the supplied window. Use Explorer's
+        // previous sibling so the calendar lands immediately above Explorer.
+        // Passing Explorer itself can put the calendar behind the wallpaper.
+        var aboveDesktop = GetWindow(desktop, GwHwndPrev);
+        if (aboveDesktop == hwnd) return true;
+        return SetWindowPos(hwnd, aboveDesktop, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040);
     }
     public static void HideFromTaskbar(Window window)
     {
@@ -70,6 +76,16 @@ public static class DesktopHost
         long exStyle = GetWindowLongPtr(hwnd, GwlExStyle).ToInt64();
         long hiddenStyle = (exStyle | WsExToolWindow) & ~WsExAppWindow;
         if (hiddenStyle != exStyle) SetWindowLongPtr(hwnd, GwlExStyle, new IntPtr(hiddenStyle));
+    }
+    public static void BringToFront(Window window)
+    {
+        HideFromTaskbar(window);
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        if (IsIconic(hwnd)) ShowWindow(hwnd, 9);
+        ShowWindow(hwnd, 4);
+        SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040);
+        SetForegroundWindow(hwnd);
     }
     public static void MoveScreen(IntPtr hwnd, int x, int y)
     {

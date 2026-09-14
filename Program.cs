@@ -13,7 +13,7 @@ public sealed class Program : Application
     private Forms.NotifyIcon? tray;
     private MainWindow? calendar;
     private Store store = null!;
-    private DispatcherTimer? timer;
+    private DispatcherTimer? timer, desktopTimer;
     private EventWaitHandle? showEvent;
     private bool quitting, windowed;
     private int ticks;
@@ -53,6 +53,13 @@ public sealed class Program : Application
             {
                 app.store = new Store(folder);
                 app.CreateTray(); app.OpenCalendar();
+                app.desktopTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+                app.desktopTimer.Tick += (_, _) =>
+                {
+                    if (app.showEvent?.WaitOne(0) == true) app.Reveal();
+                    else app.calendar?.CheckDesktop();
+                };
+                app.desktopTimer.Start();
                 app.timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
                 app.timer.Tick += (_, _) => app.Tick(); app.timer.Start();
                 app.LogDiagnostics("startup-complete");
@@ -73,7 +80,7 @@ public sealed class Program : Application
             Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? System.Drawing.SystemIcons.Application };
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(Reveal);
         var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("确保日历在桌面层", null, (_, _) => Dispatcher.Invoke(Reveal));
+        menu.Items.Add("显示日历", null, (_, _) => Dispatcher.Invoke(Reveal));
         menu.Items.Add("新增今日待办", null, (_, _) => Dispatcher.Invoke(() => { OpenCalendar(); calendar!.Edit(null, DateTime.Today); }));
         menu.Items.Add("设置与备份", null, (_, _) => Dispatcher.Invoke(() => { OpenCalendar(); calendar!.SettingsDialog(); }));
         menu.Items.Add(new Forms.ToolStripSeparator());
@@ -96,11 +103,11 @@ public sealed class Program : Application
     public void Reveal()
     {
         OpenCalendar();
-        calendar!.EnsureDesktopVisible();
+        calendar!.ShowFromTray();
     }
     public void Quit()
     {
-        quitting = true; timer?.Stop(); calendar?.SavePlacement(); tray?.Dispose(); showEvent?.Dispose();
+        quitting = true; desktopTimer?.Stop(); timer?.Stop(); calendar?.SavePlacement(); tray?.Dispose(); showEvent?.Dispose();
         Shutdown();
     }
     private void Tick()
@@ -109,8 +116,6 @@ public sealed class Program : Application
         if (quitting) return;
         // Explorer can replace or reorder its desktop window while restarting.
         OpenCalendar();
-        if (showEvent?.WaitOne(0) == true) Reveal();
-        calendar?.CheckDesktop();
         if (++ticks % 15 != 0) return;
         calendar?.CheckDate();
         var due = store.Data.Items.Where(i => i.Remind && !i.Notified && !i.Done && i.Time != ""
