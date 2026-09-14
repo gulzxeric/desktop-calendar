@@ -1,11 +1,71 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Windows;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace DesktopTodo;
 
 public static class SelfTests
 {
+    public static int RunResize()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "ShiriResizeTests-" + Guid.NewGuid().ToString("N"));
+        string report = Program.Option("--report") ?? Path.Combine(AppContext.BaseDirectory, "resize-test-results.txt");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var store = new Store(root);
+            store.Data.Settings.Desktop = false;
+            store.Data.Settings.Width = 900;
+            store.Data.Settings.Height = 580;
+            var window = new MainWindow(store, true);
+            window.Show();
+            window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var grip = FindVisual<Thumb>(window, t => t.Name == "ResizeCorner")
+                ?? throw new Exception("Resize grip was not found");
+            grip.RaiseEvent(new DragDeltaEventArgs(-340, -160) { RoutedEvent = Thumb.DragDeltaEvent });
+            grip.RaiseEvent(new DragCompletedEventArgs(-340, -160, false) { RoutedEvent = Thumb.DragCompletedEvent });
+            window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            window.SavePlacement();
+            var reloaded = new Store(root);
+            bool shrank = window.Width <= 600 && window.Height <= 430 && window.IsCompactLayout
+                && reloaded.Data.Settings.Width <= 600 && reloaded.Data.Settings.Height <= 430;
+            double smallWidth = window.Width, smallHeight = window.Height;
+            var growGrip = FindVisual<Thumb>(window, t => t.Name == "ResizeCorner")
+                ?? throw new Exception("Resize grip disappeared in compact layout");
+            growGrip.RaiseEvent(new DragDeltaEventArgs(340, 200) { RoutedEvent = Thumb.DragDeltaEvent });
+            growGrip.RaiseEvent(new DragCompletedEventArgs(340, 200, false) { RoutedEvent = Thumb.DragCompletedEvent });
+            window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            bool grew = window.Width >= 880 && window.Height >= 600 && !window.IsCompactLayout;
+            bool passed = shrank && grew;
+            string result = $"{(passed ? "PASS" : "FAIL")} shrink 900x580 -> {smallWidth:0}x{smallHeight:0}; persisted {reloaded.Data.Settings.Width:0}x{reloaded.Data.Settings.Height:0}; grow -> {window.Width:0}x{window.Height:0}";
+            File.WriteAllText(report, result);
+            window.Close();
+            app.Shutdown();
+            return passed ? 0 : 1;
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(report, "FAIL " + ex);
+            return 1;
+        }
+        finally { Directory.Delete(root, true); }
+    }
+    private static T? FindVisual<T>(DependencyObject root, Func<T, bool> predicate) where T : DependencyObject
+    {
+        if (root is T match && predicate(match)) return match;
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var found = FindVisual(VisualTreeHelper.GetChild(root, i), predicate);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
     public static int Run()
     {
         string root = Path.Combine(Path.GetTempPath(), "ShiriTests-" + Guid.NewGuid().ToString("N"));

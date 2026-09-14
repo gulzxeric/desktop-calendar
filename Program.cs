@@ -23,6 +23,7 @@ public sealed class Program : Application
     public static int Main(string[] args)
     {
         Arguments = args;
+        if (args.Contains("--resize-self-test")) return SelfTests.RunResize();
         if (args.Contains("--self-test")) return SelfTests.Run();
         // Layered WPF windows reparented into Explorer need a software surface:
         // GPU composition can keep a stale surface after the parent changes.

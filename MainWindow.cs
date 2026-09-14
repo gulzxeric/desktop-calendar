@@ -20,7 +20,7 @@ public sealed class MainWindow : Window
     private DateTime selected = DateTime.Today, displayed = DateTime.Today, lastToday = DateTime.Today;
     private Grid root = null!, body = null!;
     private TextBlock status = null!;
-    private bool attached, dragging, initialRendered;
+    private bool attached, dragging, initialRendered, compact;
     private DesktopHost.POINT dragStart;
     private DesktopHost.RECT startRect;
     private readonly bool testWindow;
@@ -28,14 +28,16 @@ public sealed class MainWindow : Window
     private Preferences Pref => store.Data.Settings;
     private string view;
     public bool IsOnDesktop => attached;
+    public bool IsCompactLayout => compact;
     public DateTime SelectedDate => selected;
     public void FocusDate(DateTime date) { selected = displayed = date; Build(); }
     public MainWindow(Store data, bool windowed)
     {
         store = data; testWindow = windowed; view = Pref.View;
         Title = "拾日 · 桌面日历";
-        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; AllowsTransparency = true;
-        Background = Brushes.Transparent; ShowInTaskbar = windowed || !Pref.Desktop; MinWidth = 880; MinHeight = 560;
+        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; AllowsTransparency = true;
+        Background = Brushes.Transparent; ShowInTaskbar = windowed || !Pref.Desktop;
+        MinWidth = LayoutRules.MinimumWidth; MinHeight = LayoutRules.MinimumHeight;
         Width = Pref.Width; Height = Pref.Height; Opacity = Pref.Opacity;
         var area = SystemParameters.WorkArea;
         Width = Math.Min(Width, area.Width); Height = Math.Min(Height, area.Height);
@@ -76,6 +78,7 @@ public sealed class MainWindow : Window
     }
     private void Build()
     {
+        compact = (ActualWidth > 0 ? ActualWidth : Width) < LayoutRules.CompactWidth;
         Theme.Set(Pref.Light);
         var frame = new Border { Background = Theme.Bg, BorderBrush = Theme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), ClipToBounds = true };
         root = new Grid(); frame.Child = root; Content = frame;
@@ -88,16 +91,44 @@ public sealed class MainWindow : Window
         Grid.SetRow(body, 2); root.Children.Add(body); RenderBody();
         var footer = new DockPanel { Margin = new Thickness(22, 0, 16, 0), LastChildFill = true };
         Grid.SetRow(footer, 3); root.Children.Add(footer);
-        var grip = new Thumb { Width = 22, Height = 22, Cursor = Cursors.SizeNWSE, Background = Brushes.Transparent, ToolTip = "拖动调整大小" };
-        var visual = new FrameworkElementFactory(typeof(TextBlock)); visual.SetValue(TextBlock.TextProperty, "◢"); visual.SetValue(TextBlock.ForegroundProperty, Theme.Muted);
-        grip.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = visual };
-        grip.DragDelta += (_, e) => { if (Pref.Locked) return; Width = Math.Max(MinWidth, Width + e.HorizontalChange); Height = Math.Max(MinHeight, Height + e.VerticalChange); };
-        grip.DragCompleted += (_, _) => SavePlacement();
-        DockPanel.SetDock(grip, Dock.Right); footer.Children.Add(grip);
         var undo = Theme.Button("撤销", (_, _) => Undo()); undo.Padding = new Thickness(9, 2, 9, 2); undo.ToolTip = "撤销本次运行中的任务修改 · Ctrl+Z";
         DockPanel.SetDock(undo, Dock.Right); footer.Children.Add(undo);
         status = Theme.Text(attached ? "桌面层  ·  双击日期添加  ·  拖动任务改期" : "本地保存  ·  双击日期添加  ·  拖动任务改期", 11, Theme.Muted);
         footer.Children.Add(status);
+        AddResizeHandles();
+    }
+    private void AddResizeHandles()
+    {
+        Thumb Handle(double width, double height, HorizontalAlignment horizontal, VerticalAlignment vertical, Cursor cursor, double xFactor, double yFactor, int z)
+        {
+            var thumb = new Thumb
+            {
+                Width = width, Height = height, HorizontalAlignment = horizontal, VerticalAlignment = vertical,
+                Cursor = cursor, ToolTip = "拖动调整大小", Background = Brushes.Transparent
+            };
+            var hitArea = new FrameworkElementFactory(typeof(Border));
+            hitArea.SetValue(Border.BackgroundProperty, Brushes.Transparent);
+            thumb.Template = new ControlTemplate(typeof(Thumb)) { VisualTree = hitArea };
+            thumb.DragDelta += (_, e) =>
+            {
+                if (Pref.Locked) { SetStatus("位置和大小已锁定，可在设置中解除"); return; }
+                if (xFactor != 0) Width = Math.Clamp(Width + e.HorizontalChange * xFactor, MinWidth, LayoutRules.MaximumWidth);
+                if (yFactor != 0) Height = Math.Clamp(Height + e.VerticalChange * yFactor, MinHeight, LayoutRules.MaximumHeight);
+            };
+            thumb.DragCompleted += (_, _) => { SavePlacement(); Build(); };
+            Grid.SetRowSpan(thumb, 4); Panel.SetZIndex(thumb, z); root.Children.Add(thumb);
+            return thumb;
+        }
+        var right = Handle(12, double.NaN, HorizontalAlignment.Right, VerticalAlignment.Stretch, Cursors.SizeWE, 1, 0, 40);
+        right.ToolTip = "拖动右边缘调整宽度";
+        var bottom = Handle(double.NaN, 12, HorizontalAlignment.Stretch, VerticalAlignment.Bottom, Cursors.SizeNS, 0, 1, 40);
+        bottom.ToolTip = "拖动下边缘调整高度";
+        var corner = Handle(38, 38, HorizontalAlignment.Right, VerticalAlignment.Bottom, Cursors.SizeNWSE, 1, 1, 50);
+        corner.Name = "ResizeCorner";
+        var marker = Theme.Text("◢", 16, Theme.Muted);
+        marker.HorizontalAlignment = HorizontalAlignment.Right; marker.VerticalAlignment = VerticalAlignment.Bottom;
+        marker.Margin = new Thickness(0, 0, 3, 1); marker.IsHitTestVisible = false;
+        Grid.SetRowSpan(marker, 4); Panel.SetZIndex(marker, 60); root.Children.Add(marker);
     }
     private void Header()
     {
@@ -106,7 +137,10 @@ public sealed class MainWindow : Window
         root.Children.Add(bar);
         var brand = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Background = Brushes.Transparent, Cursor = Pref.Locked ? Cursors.Arrow : Cursors.SizeAll };
         brand.Children.Add(Theme.Text("拾日", 26));
-        var label = Theme.Text("桌面日历", 12, Theme.Muted); label.Margin = new Thickness(14, 5, 0, 0); brand.Children.Add(label);
+        if (!compact)
+        {
+            var label = Theme.Text("桌面日历", 12, Theme.Muted); label.Margin = new Thickness(14, 5, 0, 0); brand.Children.Add(label);
+        }
         bar.Children.Add(brand);
         brand.MouseLeftButtonDown += (_, e) =>
         {
@@ -122,8 +156,8 @@ public sealed class MainWindow : Window
         brand.MouseLeftButtonUp += (_, _) => { dragging = false; brand.ReleaseMouseCapture(); SavePlacement(); };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(buttons, 1); bar.Children.Add(buttons);
-        var mode = Theme.Button(attached ? "桌面模式" : "窗口模式", (_, _) => SetDesktop(!attached));
-        mode.ToolTip = "桌面模式位于桌面图标层；窗口模式方便临时编辑"; buttons.Children.Add(mode);
+        var mode = Theme.Button(attached ? "弹出窗口" : "放回桌面", (_, _) => SetDesktop(!attached));
+        mode.ToolTip = attached ? "暂时变成普通窗口，方便移动和缩放" : "将日历放回桌面图标层"; buttons.Children.Add(mode);
         buttons.Children.Add(Theme.Button("设置", (_, _) => SettingsDialog()));
         buttons.Children.Add(Theme.Button("＋ 新建", (_, _) => Edit(null, selected), true));
     }
@@ -154,9 +188,9 @@ public sealed class MainWindow : Window
     {
         body.Children.Clear(); body.ColumnDefinitions.Clear();
         body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        body.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(268) });
+        body.ColumnDefinitions.Add(new ColumnDefinition { Width = compact ? new GridLength(0) : new GridLength(268) });
         if (view == "清单") RenderList(); else RenderCalendar();
-        RenderDay();
+        if (!compact) RenderDay();
     }
     private void RenderCalendar()
     {
@@ -178,13 +212,13 @@ public sealed class MainWindow : Window
             var cell = new Border { Background = date == selected.Date ? Theme.Panel : Theme.Cell,
                 BorderBrush = date == selected.Date ? Theme.Accent : Theme.Line,
                 BorderThickness = new Thickness(date == selected.Date ? 1.5 : .5), CornerRadius = new CornerRadius(5),
-                Margin = new Thickness(2), Padding = new Thickness(7, 5, 5, 4), ClipToBounds = true, AllowDrop = true,
+                Margin = new Thickness(2), Padding = compact ? new Thickness(4, 3, 3, 3) : new Thickness(7, 5, 5, 4), ClipToBounds = true, AllowDrop = true,
                 ToolTip = date.ToString("yyyy年M月d日 dddd") + " · 双击添加待办", Tag = date };
             Grid.SetRow(cell, index / 7 + 1); Grid.SetColumn(cell, index % 7); grid.Children.Add(cell); index++;
             var layout = new Grid(); layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(25) }); layout.RowDefinitions.Add(new RowDefinition()); cell.Child = layout;
             var top = new DockPanel(); layout.Children.Add(top);
             var lunar = Theme.Text(CalendarMath.Lunar(date), 9, Theme.Muted); lunar.HorizontalAlignment = HorizontalAlignment.Right; DockPanel.SetDock(lunar, Dock.Right); top.Children.Add(lunar);
-            var day = Theme.Text(date.Day.ToString(), 17, date == DateTime.Today ? Theme.Accent : Theme.Ink);
+            var day = Theme.Text(date.Day.ToString(), compact ? 15 : 17, date == DateTime.Today ? Theme.Accent : Theme.Ink);
             day.FontFamily = new FontFamily("Bahnschrift"); day.FontWeight = date == DateTime.Today ? FontWeights.Bold : FontWeights.Normal;
             if (date.Month != displayed.Month && view == "月历") day.Opacity = .4;
             top.Children.Add(day);
@@ -228,9 +262,12 @@ public sealed class MainWindow : Window
                     cell.BorderBrush = d == selected ? Theme.Accent : Theme.Line;
                     cell.BorderThickness = new Thickness(d == selected ? 1.5 : .5);
                 }
-        var sidebar = body.Children.OfType<Border>().FirstOrDefault(b => Grid.GetColumn(b) == 1);
-        if (sidebar != null) body.Children.Remove(sidebar);
-        RenderDay();
+        if (!compact)
+        {
+            var sidebar = body.Children.OfType<Border>().FirstOrDefault(b => Grid.GetColumn(b) == 1);
+            if (sidebar != null) body.Children.Remove(sidebar);
+            RenderDay();
+        }
     }
     private UIElement TaskChip(TodoItem item, bool wrap)
     {

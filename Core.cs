@@ -7,6 +7,15 @@ using System.Text.Json;
 
 namespace DesktopTodo;
 
+public static class LayoutRules
+{
+    public const double MinimumWidth = 560;
+    public const double MinimumHeight = 420;
+    public const double CompactWidth = 820;
+    public const double MaximumWidth = 2400;
+    public const double MaximumHeight = 1600;
+}
+
 public sealed class TodoItem
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -81,8 +90,8 @@ public sealed class Store
             || i.Time == null || (i.Time != "" && !TimeSpan.TryParseExact(i.Time, @"hh\:mm", CultureInfo.InvariantCulture, out _)))
             || data.Items.Select(i => i.Id).Distinct().Count() != data.Items.Count)
             throw new InvalidDataException("备份中包含无效或重复的任务。");
-        data.Settings.Width = Clamp(data.Settings.Width, 880, 2400, 1100);
-        data.Settings.Height = Clamp(data.Settings.Height, 560, 1600, 700);
+        data.Settings.Width = Clamp(data.Settings.Width, LayoutRules.MinimumWidth, LayoutRules.MaximumWidth, 1100);
+        data.Settings.Height = Clamp(data.Settings.Height, LayoutRules.MinimumHeight, LayoutRules.MaximumHeight, 700);
         data.Settings.Opacity = Clamp(data.Settings.Opacity, 0.45, 1, 0.92);
         if (!double.IsFinite(data.Settings.Left)) data.Settings.Left = -99999;
         if (!double.IsFinite(data.Settings.Top)) data.Settings.Top = -99999;
