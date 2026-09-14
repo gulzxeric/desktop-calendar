@@ -93,15 +93,6 @@ public sealed class Program : Application
         created.Closed += (_, _) => { if (calendar == created) calendar = null; };
         created.Show();
     }
-    public void RecreateDesktop()
-    {
-        // A layered WPF render target caches its original native parent. Recreate
-        // the surface after Explorer replaces the desktop host.
-        DateTime? selected = calendar?.SelectedDate;
-        calendar?.SavePlacement();
-        calendar?.Close();
-        CreateCalendar(false, selected);
-    }
     public void Reveal()
     {
         OpenCalendar();
@@ -116,7 +107,7 @@ public sealed class Program : Application
     {
         LogDiagnostics("timer-tick");
         if (quitting) return;
-        // Explorer can destroy its child windows while restarting. Recreate from disk-backed state.
+        // Explorer can replace or reorder its desktop window while restarting.
         OpenCalendar();
         if (showEvent?.WaitOne(0) == true) Reveal();
         calendar?.CheckDesktop();

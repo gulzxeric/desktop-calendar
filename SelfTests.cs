@@ -20,20 +20,26 @@ public static class SelfTests
         {
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             var store = new Store(root);
-            store.Data.Settings.Desktop = false;
-            var window = new MainWindow(store, true);
+            store.Data.Settings.Desktop = true;
+            var window = new MainWindow(store, false);
             window.Show();
             window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var hwnd = new WindowInteropHelper(window).Handle;
             long exStyle = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlExStyle).ToInt64();
-            bool hiddenFromTaskbar = !window.ShowInTaskbar
-                && (exStyle & DesktopHost.WsExAppWindow) == 0
+            long style = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlStyle).ToInt64();
+            var desktop = DesktopHost.FindDesktop();
+            bool hiddenFromTaskbar = (exStyle & DesktopHost.WsExAppWindow) == 0
                 && (exStyle & DesktopHost.WsExToolWindow) != 0;
+            bool stableDesktopLayer = (style & DesktopHost.WsChild) == 0
+                && (style & DesktopHost.WsPopup) != 0
+                && DesktopHost.GetParent(hwnd) == IntPtr.Zero
+                && DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext) == desktop;
+            bool passed = hiddenFromTaskbar && stableDesktopLayer;
             File.WriteAllText(report,
-                $"{(hiddenFromTaskbar ? "PASS" : "FAIL")} ShowInTaskbar={window.ShowInTaskbar}; exStyle=0x{exStyle:X}; APPWINDOW={(exStyle & DesktopHost.WsExAppWindow) != 0}; TOOLWINDOW={(exStyle & DesktopHost.WsExToolWindow) != 0}");
+                $"{(passed ? "PASS" : "FAIL")} taskbarSuppressed={hiddenFromTaskbar}; managedShowInTaskbar={window.ShowInTaskbar}; parent={DesktopHost.GetParent(hwnd)}; desktop={desktop}; style=0x{style:X}; exStyle=0x{exStyle:X}; next={DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext)}");
             window.Close();
             app.Shutdown();
-            return hiddenFromTaskbar ? 0 : 1;
+            return passed ? 0 : 1;
         }
         catch (Exception ex)
         {

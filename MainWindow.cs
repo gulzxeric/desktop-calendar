@@ -35,7 +35,9 @@ public sealed class MainWindow : Window
         store = data; testWindow = windowed; view = Pref.View;
         Title = "拾日 · 桌面日历";
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; AllowsTransparency = true;
-        Background = Brushes.Transparent; ShowInTaskbar = false;
+        // Keep WPF from creating a hidden owner window. SourceInitialized replaces
+        // the native APPWINDOW flag with TOOLWINDOW before this HWND is displayed.
+        Background = Brushes.Transparent; ShowInTaskbar = true; ShowActivated = false;
         MinWidth = LayoutRules.MinimumWidth; MinHeight = LayoutRules.MinimumHeight;
         Width = Pref.Width; Height = Pref.Height; Opacity = Pref.Opacity;
         var area = SystemParameters.WorkArea;
@@ -48,8 +50,7 @@ public sealed class MainWindow : Window
         SourceInitialized += (_, _) =>
         {
             DesktopHost.HideFromTaskbar(this);
-            // Establish the parent before the first WPF composition surface.
-            if (!testWindow) attached = DesktopHost.Attach(this);
+            if (!testWindow) attached = DesktopHost.PlaceOnDesktop(this);
         };
         StateChanged += (_, _) =>
         {
@@ -430,18 +431,10 @@ public sealed class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         if (!DesktopHost.IsWindow(hwnd)) return;
         DesktopHost.HideFromTaskbar(this);
-        var desktop = DesktopHost.FindDesktop();
-        if (!attached)
-        {
-            if (desktop != IntPtr.Zero) { attached = DesktopHost.Attach(this); if (attached) Build(); }
-            return;
-        }
-        if (desktop != IntPtr.Zero && DesktopHost.GetParent(hwnd) != desktop)
-        {
-            ((Program)Application.Current).RecreateDesktop();
-            return;
-        }
-        if (WindowState == WindowState.Minimized || DesktopHost.IsIconic(hwnd)) EnsureDesktopVisible();
+        bool wasAttached = attached;
+        if (WindowState == WindowState.Minimized || DesktopHost.IsIconic(hwnd)) WindowState = WindowState.Normal;
+        attached = DesktopHost.PlaceOnDesktop(this);
+        if (attached != wasAttached) Build();
     }
     public void EnsureDesktopVisible()
     {
@@ -449,14 +442,10 @@ public sealed class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero || !DesktopHost.IsWindow(hwnd)) return;
         DesktopHost.HideFromTaskbar(this);
-        if (!attached)
-        {
-            attached = DesktopHost.Attach(this);
-            if (!attached) return;
-            Build();
-        }
         WindowState = WindowState.Normal;
-        DesktopHost.RestoreVisible(this);
+        bool wasAttached = attached;
+        attached = DesktopHost.PlaceOnDesktop(this);
+        if (attached != wasAttached) Build();
     }
     public void CheckDate() { if (lastToday != DateTime.Today) { lastToday = DateTime.Today; Build(); } }
     public void SavePlacement()
@@ -474,7 +463,7 @@ public sealed class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         long exStyle = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlExStyle).ToInt64();
         File.WriteAllText(Path.Combine(store.DirectoryPath, "window-diagnostics.json"), System.Text.Json.JsonSerializer.Serialize(new
-        { hwnd = hwnd.ToInt64(), parent = DesktopHost.GetParent(hwnd).ToInt64(), desktop = DesktopHost.FindDesktop().ToInt64(), visible = DesktopHost.IsWindowVisible(hwnd), iconic = DesktopHost.IsIconic(hwnd), attached, showInTaskbar = ShowInTaskbar, width = ActualWidth, height = ActualHeight, style = DesktopHost.GetWindowLongPtr(hwnd, -16).ToInt64(), exStyle, appWindow = (exStyle & DesktopHost.WsExAppWindow) != 0, toolWindow = (exStyle & DesktopHost.WsExToolWindow) != 0 }, Store.Json));
+        { hwnd = hwnd.ToInt64(), parent = DesktopHost.GetParent(hwnd).ToInt64(), desktop = DesktopHost.FindDesktop().ToInt64(), visible = DesktopHost.IsWindowVisible(hwnd), iconic = DesktopHost.IsIconic(hwnd), attached, managedShowInTaskbar = ShowInTaskbar, taskbarSuppressed = (exStyle & DesktopHost.WsExAppWindow) == 0 && (exStyle & DesktopHost.WsExToolWindow) != 0, width = ActualWidth, height = ActualHeight, style = DesktopHost.GetWindowLongPtr(hwnd, -16).ToInt64(), exStyle, appWindow = (exStyle & DesktopHost.WsExAppWindow) != 0, toolWindow = (exStyle & DesktopHost.WsExToolWindow) != 0 }, Store.Json));
     }
     private void Capture(string path)
     {
