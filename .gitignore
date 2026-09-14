@@ -1,0 +1,5 @@
+bin/
+obj/
+dist/
+.scratch/runtime/
+*.user
