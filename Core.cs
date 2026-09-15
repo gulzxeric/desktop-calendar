@@ -38,6 +38,7 @@ public sealed class Preferences
     public double Opacity { get; set; } = 0.92;
     public bool Light { get; set; }
     public int ThemeIndex { get; set; }
+    public string[]? ThemeColors { get; set; }
     public bool Locked { get; set; }
     public bool Desktop { get; set; } = true;
     public string View { get; set; } = "月历";
@@ -99,6 +100,10 @@ public sealed class Store
         if (data.Settings.Light && data.Settings.ThemeIndex == 0)
             data.Settings.ThemeIndex = 1;
         data.Settings.Light = Theme.Themes[data.Settings.ThemeIndex].Light;
+        // 自定义颜色（可选，7 个 #RRGGBB）：此处仅校验合法性，实际应用在 MainWindow.Build()。
+        var custom = data.Settings.ThemeColors;
+        if (custom != null && (custom.Length != 7 || custom.Any(c => !Theme.IsHexColor(c))))
+            data.Settings.ThemeColors = null;
         if (!double.IsFinite(data.Settings.Left)) data.Settings.Left = -99999;
         if (!double.IsFinite(data.Settings.Top)) data.Settings.Top = -99999;
         if (!new[] { "月历", "周历", "清单" }.Contains(data.Settings.View)) data.Settings.View = "月历";
