@@ -37,6 +37,7 @@ public sealed class Preferences
     public double Height { get; set; } = 700;
     public double Opacity { get; set; } = 0.92;
     public bool Light { get; set; }
+    public int ThemeIndex { get; set; }
     public bool Locked { get; set; }
     public bool Desktop { get; set; } = true;
     public string View { get; set; } = "月历";
@@ -93,6 +94,11 @@ public sealed class Store
         data.Settings.Width = Clamp(data.Settings.Width, LayoutRules.MinimumWidth, LayoutRules.MaximumWidth, 1100);
         data.Settings.Height = Clamp(data.Settings.Height, LayoutRules.MinimumHeight, LayoutRules.MaximumHeight, 700);
         data.Settings.Opacity = Clamp(data.Settings.Opacity, 0.45, 1, 0.92);
+        // 旧备份只有“浅色主题”开关；若曾启用浅色且未显式选择新主题，迁移到对应浅色主题。
+        data.Settings.ThemeIndex = Theme.ClampIndex(data.Settings.ThemeIndex);
+        if (data.Settings.Light && data.Settings.ThemeIndex == 0)
+            data.Settings.ThemeIndex = 1;
+        data.Settings.Light = Theme.Themes[data.Settings.ThemeIndex].Light;
         if (!double.IsFinite(data.Settings.Left)) data.Settings.Left = -99999;
         if (!double.IsFinite(data.Settings.Top)) data.Settings.Top = -99999;
         if (!new[] { "月历", "周历", "清单" }.Contains(data.Settings.View)) data.Settings.View = "月历";
