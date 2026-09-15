@@ -95,7 +95,7 @@ public sealed class Program : Application
     private void CreateCalendar(bool asWindow, DateTime? selected = null)
     {
         var created = new MainWindow(store, asWindow);
-        calendar = created; MainWindow = created;
+        calendar = created;
         if (selected.HasValue) created.FocusDate(selected.Value);
         created.Closed += (_, _) => { if (calendar == created) calendar = null; };
         created.Show();

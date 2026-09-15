@@ -28,24 +28,24 @@ public static class SelfTests
             long exStyle = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlExStyle).ToInt64();
             long style = DesktopHost.GetWindowLongPtr(hwnd, DesktopHost.GwlStyle).ToInt64();
             var desktop = DesktopHost.FindDesktop();
-            DesktopHost.SetWindowPos(hwnd, DesktopHost.HwndBottom, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010 | 0x0040);
-            bool simulatedShowDesktop = DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext) == IntPtr.Zero;
             bool recoveredFromShowDesktop = DesktopHost.PlaceOnDesktop(window)
-                && DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext) == desktop;
-            bool hiddenFromTaskbar = (exStyle & DesktopHost.WsExAppWindow) == 0
+                && DesktopHost.IsOnDesktopLayer(hwnd, desktop);
+            bool hiddenFromTaskbar = !window.ShowInTaskbar
+                && (exStyle & DesktopHost.WsExAppWindow) == 0
                 && (exStyle & DesktopHost.WsExToolWindow) != 0;
             bool stableDesktopLayer = (style & DesktopHost.WsChild) == 0
                 && (style & DesktopHost.WsPopup) != 0
-                && DesktopHost.GetParent(hwnd) == IntPtr.Zero
+                && DesktopHost.GetParent(hwnd) != desktop
                 && recoveredFromShowDesktop;
             window.ShowFromTray();
             window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-            bool trayReveal = window.IsRevealed && DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext) != desktop;
+            bool trayReveal = window.IsRevealed && DesktopHost.IsWindowVisible(hwnd)
+                && !DesktopHost.IsIconic(hwnd) && !window.ShowInTaskbar;
             window.ReturnToDesktop();
-            bool returnedToDesktop = !window.IsRevealed && DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext) == desktop;
+            bool returnedToDesktop = !window.IsRevealed && DesktopHost.IsOnDesktopLayer(hwnd, desktop);
             bool passed = hiddenFromTaskbar && stableDesktopLayer && trayReveal && returnedToDesktop;
             File.WriteAllText(report,
-                $"{(passed ? "PASS" : "FAIL")} taskbarSuppressed={hiddenFromTaskbar}; managedShowInTaskbar={window.ShowInTaskbar}; simulatedBottom={simulatedShowDesktop}; recovered={recoveredFromShowDesktop}; trayReveal={trayReveal}; returned={returnedToDesktop}; parent={DesktopHost.GetParent(hwnd)}; desktop={desktop}; style=0x{style:X}; exStyle=0x{exStyle:X}; next={DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext)}");
+                $"{(passed ? "PASS" : "FAIL")} taskbarSuppressed={hiddenFromTaskbar}; managedShowInTaskbar={window.ShowInTaskbar}; desktopLayer={recoveredFromShowDesktop}; trayReveal={trayReveal}; returned={returnedToDesktop}; parent={DesktopHost.GetParent(hwnd)}; desktop={desktop}; style=0x{style:X}; exStyle=0x{exStyle:X}; next={DesktopHost.GetWindow(hwnd, DesktopHost.GwHwndNext)}");
             window.Close();
             app.Shutdown();
             return passed ? 0 : 1;

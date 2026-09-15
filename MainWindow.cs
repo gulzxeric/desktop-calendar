@@ -36,9 +36,7 @@ public sealed class MainWindow : Window
         store = data; testWindow = windowed; view = Pref.View;
         Title = "拾日 · 桌面日历";
         WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.CanResize; AllowsTransparency = true;
-        // Keep WPF from creating a hidden owner window. SourceInitialized replaces
-        // the native APPWINDOW flag with TOOLWINDOW before this HWND is displayed.
-        Background = Brushes.Transparent; ShowInTaskbar = true; ShowActivated = false;
+        Background = Brushes.Transparent; ShowInTaskbar = false; ShowActivated = false;
         MinWidth = LayoutRules.MinimumWidth; MinHeight = LayoutRules.MinimumHeight;
         Width = Pref.Width; Height = Pref.Height; Opacity = Pref.Opacity;
         var area = SystemParameters.WorkArea;
