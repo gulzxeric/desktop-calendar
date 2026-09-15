@@ -80,10 +80,12 @@ public sealed class MainWindow : Window
     {
         compact = (ActualWidth > 0 ? ActualWidth : Width) < LayoutRules.CompactWidth;
         Theme.Set(Pref.ThemeIndex);
-        if (Pref.ThemeColors != null)
-            Theme.TryApplyColors(Pref.ThemeIndex, Pref.ThemeColors, out _);
-        var frame = new Border { Background = Theme.Bg, BorderBrush = Theme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), ClipToBounds = true };
-        root = new Grid(); frame.Child = root; Content = frame;
+        var bgFrame = new Border { Background = Theme.Bg, CornerRadius = new CornerRadius(12), ClipToBounds = true };
+        var edgeFrame = new Border { Background = Theme.Edge, CornerRadius = new CornerRadius(12), ClipToBounds = true, BorderBrush = Theme.Line, BorderThickness = new Thickness(0.5), IsHitTestVisible = false };
+        var frameGrid = new Grid();
+        frameGrid.Children.Add(bgFrame);
+        frameGrid.Children.Add(edgeFrame);
+        root = new Grid(); bgFrame.Child = root; Content = frameGrid;
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(76) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(48) });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -504,59 +506,21 @@ public sealed class MainWindow : Window
     }
     public void SettingsDialog()
     {
-        var dialog = Theme.Dialog("设置与备份 · 拾日", 510, 700);
+        var dialog = Theme.Dialog("设置与备份 · 拾日", 510, 630);
         var panel = new StackPanel { Margin = new Thickness(26, 20, 26, 20) }; dialog.Content = panel;
         panel.Children.Add(Theme.Text("把日历放成你喜欢的样子", 19));
         var help = Theme.Text("所有待办保存在本机，无需账号。", 12, Theme.Muted); help.Margin = new Thickness(0, 8, 0, 20); panel.Children.Add(help);
         panel.Children.Add(Theme.Text("外观主题", 12, Theme.Muted));
         int themeIndex = Theme.ClampIndex(Pref.ThemeIndex);
-        string[] workingColors = Theme.GetColors(themeIndex);
-        Border[] swatches = new Border[7]; TextBlock[] hexes = new TextBlock[7];
-        void RefreshSwatch(int r)
-        {
-            try { swatches[r].Background = Theme.Brush(workingColors[r]); swatches[r].BorderBrush = Theme.Line; }
-            catch { swatches[r].Background = Theme.Cell; }
-            hexes[r].Text = workingColors[r];
-        }
-        void LoadThemeColors(int idx)
-        {
-            workingColors = Theme.GetColors(idx);
-            for (int r = 0; r < 7; r++) RefreshSwatch(r);
-        }
-        var themeRadios = new WrapPanel { Margin = new Thickness(0, 4, 0, 10) };
+        var themeRadios = new WrapPanel { Margin = new Thickness(0, 4, 0, 16) };
         for (int i = 0; i < Theme.Themes.Length; i++)
         {
             int n = i;
             var r = new RadioButton { Content = Theme.Themes[n].Name, Foreground = Theme.Ink, GroupName = "themes", IsChecked = n == themeIndex, Margin = new Thickness(0, 4, 14, 2), FontSize = 13 };
-            r.Checked += (_, _) => { themeIndex = n; LoadThemeColors(themeIndex); };
+            r.Checked += (_, _) => themeIndex = n;
             themeRadios.Children.Add(r);
         }
         panel.Children.Add(themeRadios);
-        panel.Children.Add(Theme.Text("自定义颜色（点色块取色，改当前主题）", 12, Theme.Muted));
-        var swatchRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-        for (int r = 0; r < 7; r++)
-        {
-            int role = r;
-            var col = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
-            swatches[role] = new Border { Width = 30, Height = 24, CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1), ToolTip = "点击修改「" + Theme.RoleNames[role] + "」颜色", Cursor = System.Windows.Input.Cursors.Hand, Background = Theme.Cell };
-            swatches[role].MouseLeftButtonUp += (_, __) =>
-            {
-                var dlg = new System.Windows.Forms.ColorDialog();
-                dlg.Color = System.Drawing.ColorTranslator.FromHtml(workingColors[role]);
-                if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    workingColors[role] = ("#" + dlg.Color.R.ToString("X2") + dlg.Color.G.ToString("X2") + dlg.Color.B.ToString("X2")).ToUpperInvariant();
-                    RefreshSwatch(role);
-                }
-            };
-            hexes[role] = Theme.Text(workingColors[role], 9, Theme.Muted); hexes[role].Margin = new Thickness(0, 3, 0, 0); hexes[role].Width = 70;
-            col.Children.Add(swatches[role]); col.Children.Add(hexes[role]);
-            swatchRow.Children.Add(col);
-        }
-        for (int r = 0; r < 7; r++) RefreshSwatch(r);
-        var resetBtn = Theme.Button("恢复默认", (_, _) => { Theme.RestoreDefaultColors(themeIndex); LoadThemeColors(themeIndex); });
-        var colorRow = new DockPanel(); DockPanel.SetDock(resetBtn, Dock.Right); colorRow.Children.Add(resetBtn); colorRow.Children.Add(swatchRow);
-        panel.Children.Add(colorRow);
         var locked = new CheckBox { Content = "锁定日历位置和大小", Foreground = Theme.Ink, IsChecked = Pref.Locked, Margin = new Thickness(0, 0, 0, 16) }; panel.Children.Add(locked);
         string startupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "拾日桌面日历.lnk");
         var startup = new CheckBox { Content = "登录 Windows 时自动启动", Foreground = Theme.Ink, IsChecked = File.Exists(startupPath), Margin = new Thickness(0, 0, 0, 20) }; panel.Children.Add(startup);
@@ -601,7 +565,6 @@ public sealed class MainWindow : Window
                 }
                 else if (!wantStartup && File.Exists(startupPath)) File.Delete(startupPath);
                 Pref.ThemeIndex = themeIndex;
-                Pref.ThemeColors = workingColors.SequenceEqual(Theme.DefaultColors(themeIndex)) ? null : workingColors.ToArray();
                 Pref.Locked = locked.IsChecked == true; Pref.Opacity = opacity.Value / 100; Opacity = Pref.Opacity; store.Save(); dialog.Close(); Build();
             }
             catch (Exception ex) { MessageBox.Show(dialog, "设置未能保存：" + ex.Message, "拾日"); }
