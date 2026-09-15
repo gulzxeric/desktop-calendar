@@ -10,37 +10,38 @@ public sealed class ThemeSpec
 {
     public string Name;
     public bool Light;
-    public string Bg, Panel, Cell, Ink, Muted, Line, Accent;
-    public ThemeSpec(string name, bool light, string bg, string panel, string cell, string ink, string muted, string line, string accent)
+    public string Bg, BgAlt, Panel, Cell, Ink, Muted, Line, Accent;
+    public ThemeSpec(string name, bool light, string bg, string bgAlt, string panel, string cell, string ink, string muted, string line, string accent)
     {
-        Name = name; Light = light; Bg = bg; Panel = panel; Cell = cell; Ink = ink; Muted = muted; Line = line; Accent = accent;
+        Name = name; Light = light; Bg = bg; BgAlt = bgAlt; Panel = panel; Cell = cell; Ink = ink; Muted = muted; Line = line; Accent = accent;
     }
 }
 
 public static class Theme
 {
-    public static Brush Bg = Brush("#202A37"), Panel = Brush("#283544"), Cell = Brush("#2D3B4C"), Ink = Brush("#F2F6FA"), Muted = Brush("#AFBED0"), Line = Brush("#415065"), Accent = Brush("#A8D9EF");
+    public static Brush Bg = Brush("#202A37"), Panel = Brush("#283544"), Cell = Brush("#2D3B4C"), Ink = Brush("#F2F6FA"), Muted = Brush("#AFBED0"), Line = Brush("#415065"), Accent = Brush("#A8D9EF"), Edge = Brushes.Transparent;
 
-    // 每套主题一种风格：深蓝夜色 / 晨雾浅蓝 / 樱粉 / 墨绿森林 / 暖砂 / 暮紫
+    // 6 套主题，风格借鉴 Apple：低饱和柔和配色 + 微渐变
     public static readonly ThemeSpec[] Themes =
     {
-        new ThemeSpec("深蓝夜色", false, "#202A37", "#283544", "#2D3B4C", "#F2F6FA", "#AFBED0", "#415065", "#A8D9EF"),
-        new ThemeSpec("晨雾浅蓝", true,  "#EEF3F7", "#E1EAF1", "#F8FAFC", "#263647", "#54677D", "#BECCD8", "#27698A"),
-        new ThemeSpec("樱粉",     true,  "#FBF0F3", "#F7E3EA", "#FFF7FA", "#4A2B3A", "#9B7285", "#E8C9D6", "#C75B8A"),
-        new ThemeSpec("墨绿森林", false, "#1A2B22", "#22372C", "#294136", "#E9F5EC", "#9BB8A4", "#3B5A49", "#8FD3A0"),
-        new ThemeSpec("暖砂",     true,  "#F7F1E5", "#F0E7D6", "#FDF9F0", "#4A3B28", "#8A7A5F", "#D9CCB2", "#C08A3E"),
-        new ThemeSpec("暮紫",     false, "#1E1730", "#291F3D", "#322647", "#F3EEFB", "#A79BC8", "#4A3D66", "#C39BEF"),
+        new ThemeSpec("静夜",   false, "#1E2836", "#191F2B", "#283242", "#333E52",
+                       "#E8ECF4", "#8C9BB4", "#3A465C", "#5B9FD6"),
+        new ThemeSpec("晨雾",   true,  "#F0F4F8", "#E6ECF2", "#E8EEF4", "#F8FAFC",
+                       "#2E3948", "#7A8A9E", "#C5D0DC", "#3A7CA5"),
+        new ThemeSpec("樱",     true,  "#FAF3F5", "#F5E8EC", "#F2E2E8", "#FFF8FA",
+                       "#5C3648", "#A67D92", "#E0C4D2", "#C45D8A"),
+        new ThemeSpec("松林",   false, "#1B2B21", "#162318", "#253829", "#2E4535",
+                       "#DCEEE2", "#8AAE92", "#3A5A45", "#7BC7A0"),
+        new ThemeSpec("米砂",   true,  "#F8F3EB", "#F0E9DB", "#F2EBDD", "#FFFCF4",
+                       "#5A4A32", "#9E8C6C", "#D6C8AC", "#B8864A"),
+        new ThemeSpec("暮",     false, "#1D1730", "#161228", "#2A2244", "#342850",
+                       "#EEE8FA", "#9E8FC0", "#453A68", "#B08AE8"),
     };
 
     public static ThemeSpec Current = Themes[0];
     public static bool IsLight => Current.Light;
-    public static readonly string[] RoleNames = { "背景", "面板", "格子", "文字", "次要文字", "线条", "强调" };
 
-    // 默认色快照，用于「恢复默认」。
-    public static readonly ThemeSpec[] Defaults =
-        Themes.Select(t => new ThemeSpec(t.Name, t.Light, t.Bg, t.Panel, t.Cell, t.Ink, t.Muted, t.Line, t.Accent)).ToArray();
-
-    public static readonly string[] Colors = { "#A8D9EF", "#B8D7AD", "#EEC681", "#D7B4E8", "#ECAFA9" };
+    public static readonly string[] Colors = { "#5B9FD6", "#7BC7A0", "#D4B85C", "#B08AE8", "#D08A8A" };
     public static readonly string[] ColorNames = { "日常", "学习", "工作", "生活", "重要" };
     public static SolidColorBrush Brush(string hex) => new((Color)ColorConverter.ConvertFromString(hex));
 
@@ -53,59 +54,36 @@ public static class Theme
     }
     private static void Apply(ThemeSpec s)
     {
-        Bg = Brush(s.Bg); Panel = Brush(s.Panel); Cell = Brush(s.Cell);
-        Ink = Brush(s.Ink); Muted = Brush(s.Muted); Line = Brush(s.Line);
+        // 背景用线性渐变 Bg→BgAlt（上→下），Apple 风格柔和过渡
+        var c1 = (Color)ColorConverter.ConvertFromString(s.Bg);
+        var c2 = (Color)ColorConverter.ConvertFromString(s.BgAlt);
+        var g = new LinearGradientBrush(
+            new GradientStopCollection {
+                new GradientStop(c1, 0.0),
+                new GradientStop(c2, 1.0)
+            },
+            new Point(0, 0), new Point(0, 1));
+        g.Freeze();
+        Bg = g;
+        // 边缘入光：窗口顶部 12% 高度内，一道由白（亮色主题）/浅（暗色主题）到透明的柔和渐变
+        var edge = s.Light ? Color.FromArgb(90, 255, 255, 255) : Color.FromArgb(46, 235, 240, 255);
+        var eg = new LinearGradientBrush(
+            new GradientStopCollection {
+                new GradientStop(edge, 0.0),
+                new GradientStop(Color.FromArgb(0, 255, 255, 255), 0.12)
+            },
+            new Point(0, 0), new Point(0, 1));
+        eg.Freeze();
+        Edge = eg;
+        Panel = Brush(s.Panel);
+        Cell = Brush(s.Cell);
+        Ink = Brush(s.Ink);
+        Muted = Brush(s.Muted);
+        Line = Brush(s.Line);
         Accent = Brush(s.Accent);
     }
     // 兼容旧调用：仅按明暗切换。
     public static void Set(bool light) => Set(light ? 1 : 0);
-
-    public static bool IsHexColor(string hex)
-    {
-        if (string.IsNullOrEmpty(hex) || hex.Length != 7 || hex[0] != '#') return false;
-        try { _ = ColorConverter.ConvertFromString(hex); return true; }
-        catch { return false; }
-    }
-    public static string[] GetColors(int index)
-    {
-        var t = Themes[ClampIndex(index)];
-        return new[] { t.Bg, t.Panel, t.Cell, t.Ink, t.Muted, t.Line, t.Accent };
-    }
-    // 应用 7 个自定义色到指定主题。colors 必须与 RoleNames 顺序一致。
-    public static bool TryApplyColors(int index, string[] colors, out string error)
-    {
-        index = ClampIndex(index);
-        error = "";
-        if (colors == null || colors.Length != 7) { error = "自定义颜色需要 7 项。"; return false; }
-        for (int i = 0; i < 7; i++)
-            if (!IsHexColor(colors[i])) { error = "「" + RoleNames[i] + "」颜色无效，应为 #RRGGBB。"; return false; }
-        var t = Themes[index];
-        t.Bg = colors[0]; t.Panel = colors[1]; t.Cell = colors[2];
-        t.Ink = colors[3]; t.Muted = colors[4]; t.Line = colors[5]; t.Accent = colors[6];
-        Apply(t);
-        if (index == ClampIndex(ThemeSpecIndex(t))) Current = t;
-        return true;
-    }
-    private static int ThemeSpecIndex(ThemeSpec s) { for (int i = 0; i < Themes.Length; i++) if (Themes[i] == s) return i; return 0; }
-    public static void RestoreDefaultColors(int index)
-    {
-        index = ClampIndex(index);
-        var src = Defaults[index];
-        var dst = Themes[index];
-        dst.Bg = src.Bg; dst.Panel = src.Panel; dst.Cell = src.Cell;
-        dst.Ink = src.Ink; dst.Muted = src.Muted; dst.Line = src.Line; dst.Accent = src.Accent;
-        Apply(dst);
-    }
-    public static string[] DefaultColors(int index)
-    {
-        var d = Defaults[ClampIndex(index)];
-        return new[] { d.Bg, d.Panel, d.Cell, d.Ink, d.Muted, d.Line, d.Accent };
-    }
-    public static bool IsDefaultColors(int index)
-    {
-        var c = GetColors(index);
-        return c.SequenceEqual(DefaultColors(index));
-    }
 
     public static TextBlock Text(string text, double size = 14, Brush? color = null) => new()
     {
