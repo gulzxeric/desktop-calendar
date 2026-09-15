@@ -1,54 +1,56 @@
-# 拾日 · 桌面日历
+# Shiri · Desktop Calendar
 
-一个本地运行的 Windows 桌面日历，以 DesktopCal 的桌面记录方式为参考，独立实现。无需登录、没有 VIP、没有网络请求。
+A local Windows desktop calendar, inspired by DesktopCal's desktop-pinning approach, implemented independently. No login, no VIP tier, no network requests.
 
-## 运行
+[简体中文](README.zh-CN.md)
 
-双击 `dist\DesktopTodo.exe`。需要放在桌面时，可右键该文件并选择“发送到 → 桌面快捷方式”。发布版包含运行时，不需要安装 .NET、Python 或 Node。
+## Running
 
-默认放在 Windows 桌面图标层上方，打开其他软件时会被遮住。点击任务栏右端的「显示桌面」后，日历仍会留在桌面上；主日历和弹出的编辑、设置窗口都不会占用任务栏按钮。双击托盘图标或选择「显示日历」会把日历临时显示在普通窗口前面；点击日历里的「回到桌面」即可放回桌面层。
+Double-click `dist\DesktopTodo.exe`. To pin it to your desktop, right-click the file and choose **Send to → Desktop (create shortcut)**. The published build ships with the .NET runtime — no .NET, Python, or Node installation required.
 
-## 使用
+The calendar sits on the Windows desktop icon layer, above desktop icons but below other windows. Clicking **Show Desktop** in the taskbar keeps the calendar visible. The main calendar, the edit dialog, and the settings window all run as tool windows without taskbar buttons. Double-clicking the tray icon or choosing **Show Calendar** brings the calendar to the foreground; clicking **Back to Desktop** in the calendar returns it to the desktop layer.
 
-- **添加**：双击日期格子，或点「＋ 新建」「＋ 添加待办」。可填写日期、时间、备注、分类颜色和提醒。
-- **查看**：单击日期，在右边查看当天任务；上方切换月历、周历、清单。清单支持跨日期搜索标题和备注。
-- **完成**：勾选右边的复选框，或右键日历中的任务。
-- **编辑**：单击右侧任务标题，或双击日历中的任务。
-- **改期**：将日历格子里的任务拖到另一天，或在编辑窗口更改日期。
-- **删除**：右键任务，或点任务右侧的「⋯」。误删可点右下角「撤销」。
-- **位置与大小**：拖动顶部「拾日」一带移动；拖动右边缘、下边缘或右下角三角调整大小。最小可缩至 560×420；窄于 820 时自动隐藏右侧详情栏。设置中可以锁定。
-- **外观**：设置中切换深浅主题、不透明度。
-- **日期**：箭头切换月份/周；「今天」回到当天；点击年月文字可跳转到指定日期。
-- **快捷键**：日历获得焦点时，Ctrl+N 新建，Ctrl+Z 撤销；编辑窗口 Ctrl+Enter 保存。
-- **退出**：托盘右键「退出拾日」，或设置中的「退出拾日」。
+## Usage
 
-开机启动默认关闭，可在设置中自行开启。程序移动位置后，需要关闭并重新开启此选项，更新快捷方式。
+- **Add**: Double-click a date cell, or click **+ New** / **+ Add Todo**. You can set date, time, notes, a category colour, and a reminder.
+- **View**: Click a date to see that day's tasks in the right-hand panel. Switch between month, week, and list views at the top. The list view supports cross-date search on titles and notes.
+- **Complete**: Tick the checkbox in the right panel, or right-click a task in the calendar.
+- **Edit**: Click a task title in the right panel, or double-click a task in the calendar.
+- **Reschedule**: Drag a task from one calendar cell to another, or change the date in the edit dialog.
+- **Delete**: Right-click a task or click the **⋯** button on its right side. Accidentally deleted items can be restored with **Undo** (bottom-right).
+- **Position & Size**: Drag the "Shiri" title bar to move the window; drag the right edge, bottom edge, or the bottom-right corner to resize. Minimum size is 560 × 420; below 820 px wide the right-hand detail panel is hidden automatically. Placement can be locked in Settings.
+- **Appearance**: Switch between light and dark themes and adjust opacity in Settings.
+- **Dates**: Use the arrows to change month/week; **Today** jumps back to the current date; click the year-month label to jump to a specific date.
+- **Shortcuts**: When the calendar has focus: `Ctrl+N` to create, `Ctrl+Z` to undo; in the edit dialog, `Ctrl+Enter` saves.
+- **Exit**: Right-click the tray icon → **Quit Shiri**, or use **Quit Shiri** in Settings.
 
-## 数据与备份
+Start-on-boot is off by default and can be enabled in Settings. After moving the calendar's position, disable and re-enable the shortcut to refresh it.
 
-数据文件夹：`%LOCALAPPDATA%\ShiriCalendar`（通常是 `C:\Users\你的用户名\AppData\Local\ShiriCalendar`）。
+## Data & Backup
 
-- `calendar.json`：任务与偏好设置。
-- `calendar.json.bak`：上一次成功保存的版本。
-- 「设置 → 导出备份」可以额外存一份 JSON 文件；「导入备份」按任务 ID 合并新任务，已有任务不会被覆盖。
-- 「撤销」支持本次运行中的任务修改；退出后撤销记录不保留。
-- 若当前文件损坏且备份有效，程序会保留损坏的原文件并从备份恢复；没有有效备份则停止加载，不用空日历覆盖数据。
+Data folder: `%LOCALAPPDATA%\ShiriCalendar` (typically `C:\Users\<you>\AppData\Local\ShiriCalendar`).
 
-现有 DesktopCal 的数据不会自动读取或迁移。导入功能接受拾日的备份格式。
+- `calendar.json` — tasks and preferences.
+- `calendar.json.bak` — the last successfully saved copy.
+- **Settings → Export Backup** saves an extra JSON file; **Import Backup** merges new tasks by ID without overwriting existing ones.
+- **Undo** covers task changes made during the current run; undo history is not persisted across restarts.
+- If the active file is corrupt and the backup is valid, the corrupted file is preserved and the backup is loaded. Without a valid backup the app stops rather than overwriting data with an empty calendar.
 
-## 当前范围
+Existing DesktopCal data is not automatically read or migrated. The import feature accepts Shiri's own backup format.
 
-提供月历、周历、清单、农历、分类颜色、待办完成、备注、定时提醒和本地备份。没有账号系统、云同步、重复任务、法定节假日调休表或外部日历双向同步。
+## Scope
 
-日期范围为 1901–2100 年；农历以系统日历库支持范围为准。
+Month / week / list views, lunar calendar, category colours, task completion, notes, scheduled reminders, and local backup are included. Account system, cloud sync, recurring tasks, statutory-holiday tables, and two-way external-calendar sync are **not** included.
 
-提醒要求程序保持运行，电脑未关机；实际通知显示受 Windows 通知设置影响。错过的提醒会在程序下一次运行时提示。程序不会定时唤醒电脑。
+Date range: 1901 – 2100. The lunar calendar follows the system's calendar-library support range.
 
-程序将无任务栏的工具窗口固定在 Explorer 桌面窗口上一层，并定期修复层级；这样可以避开 WPF 嵌入 Explorer 后偶发的透明画面。Explorer 重启或窗口被意外最小化后也会自动恢复。多显示器热插拔仍需在对应设备上验证。
+Reminders require the app to be running and the machine to be on. Actual notification display is subject to Windows notification settings. Missed reminders are surfaced the next time the app starts. The app does not wake the computer on a schedule.
 
-## 开发与验证
+The app pins a tool window (no taskbar button) above the Explorer desktop window and periodically repairs z-order to avoid intermittent transparency glitches with WPF embedded in Explorer. The window also recovers automatically if Explorer restarts or the window is minimised by mistake. Hot-plugging multiple monitors still needs to be verified on the target hardware.
 
-开发需要 .NET 10 SDK，目标平台 Windows x64，WPF 界面，WinForms 仅提供托盘和显示器信息；没有第三方运行依赖。
+## Development
+
+Requires the .NET 10 SDK, targeting Windows x64. WPF for the UI; WinForms only for tray and monitor APIs. No third-party runtime dependencies.
 
 ```powershell
 dotnet build -c Release
@@ -57,6 +59,10 @@ dotnet build -c Release
 powershell -ExecutionPolicy Bypass -File scripts\build.ps1
 ```
 
-图标源生成脚本 `scripts\make-icon.py` 需要 Pillow；已包含生成后的图标，正常编译无需运行脚本。
+The icon source-generation script `scripts\make-icon.py` requires Pillow; the generated icon is already included, so the script is not needed for a normal build.
 
-测试选项（仅开发使用）：`--data-dir <文件夹>` 使用隔离数据，`--windowed` 以普通窗口启动，`--diagnostics` 输出窗口归属检查，`--capture <PNG路径>` 导出当前界面。
+Dev-only test options: `--data-dir <folder>` to use an isolated data directory, `--windowed` to launch as a regular window, `--diagnostics` to dump window-ownership checks, `--capture <PNG path>` to export the current screen.
+
+## License
+
+[MIT](LICENSE)
