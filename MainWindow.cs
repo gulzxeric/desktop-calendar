@@ -79,7 +79,7 @@ public sealed class MainWindow : Window
     private void Build()
     {
         compact = (ActualWidth > 0 ? ActualWidth : Width) < LayoutRules.CompactWidth;
-        Theme.Set(Pref.Light);
+        Theme.Set(Pref.ThemeIndex);
         var frame = new Border { Background = Theme.Bg, BorderBrush = Theme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), ClipToBounds = true };
         root = new Grid(); frame.Child = root; Content = frame;
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(76) });
@@ -392,7 +392,7 @@ public sealed class MainWindow : Window
         for (int i = 0; i < Theme.Colors.Length; i++)
         {
             int n = i;
-            var radio = new RadioButton { Content = Theme.ColorNames[i], Foreground = Theme.Brush(Pref.Light ? "#263647" : Theme.Colors[i]), GroupName = "colors", IsChecked = n == color, Margin = new Thickness(0, 6, 15, 4), FontSize = 13 };
+            var radio = new RadioButton { Content = Theme.ColorNames[i], Foreground = Theme.Brush(Theme.IsLight ? "#263647" : Theme.Colors[i]), GroupName = "colors", IsChecked = n == color, Margin = new Thickness(0, 6, 15, 4), FontSize = 13 };
             radio.Checked += (_, _) => color = n; colors.Children.Add(radio);
         }
         form.Children.Add(colors); form.Children.Add(Theme.Text("备注", 12, Theme.Muted));
@@ -506,7 +506,16 @@ public sealed class MainWindow : Window
         var panel = new StackPanel { Margin = new Thickness(26, 20, 26, 20) }; dialog.Content = panel;
         panel.Children.Add(Theme.Text("把日历放成你喜欢的样子", 19));
         var help = Theme.Text("所有待办保存在本机，无需账号。", 12, Theme.Muted); help.Margin = new Thickness(0, 8, 0, 20); panel.Children.Add(help);
-        var light = new CheckBox { Content = "浅色主题", Foreground = Theme.Ink, IsChecked = Pref.Light, Margin = new Thickness(0, 0, 0, 16) }; panel.Children.Add(light);
+        panel.Children.Add(Theme.Text("外观主题", 12, Theme.Muted));
+        int themeIndex = Theme.ClampIndex(Pref.ThemeIndex);
+        var themeRadios = new WrapPanel { Margin = new Thickness(0, 4, 0, 16) };
+        for (int i = 0; i < Theme.Themes.Length; i++)
+        {
+            int n = i;
+            var r = new RadioButton { Content = Theme.Themes[n].Name, Foreground = Theme.Ink, GroupName = "themes", IsChecked = n == themeIndex, Margin = new Thickness(0, 4, 14, 2), FontSize = 13 };
+            r.Checked += (_, _) => themeIndex = n; themeRadios.Children.Add(r);
+        }
+        panel.Children.Add(themeRadios);
         var locked = new CheckBox { Content = "锁定日历位置和大小", Foreground = Theme.Ink, IsChecked = Pref.Locked, Margin = new Thickness(0, 0, 0, 16) }; panel.Children.Add(locked);
         string startupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "拾日桌面日历.lnk");
         var startup = new CheckBox { Content = "登录 Windows 时自动启动", Foreground = Theme.Ink, IsChecked = File.Exists(startupPath), Margin = new Thickness(0, 0, 0, 20) }; panel.Children.Add(startup);
@@ -550,7 +559,7 @@ public sealed class MainWindow : Window
                     finally { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(shell); }
                 }
                 else if (!wantStartup && File.Exists(startupPath)) File.Delete(startupPath);
-                Pref.Light = light.IsChecked == true; Pref.Locked = locked.IsChecked == true; Pref.Opacity = opacity.Value / 100; Opacity = Pref.Opacity; store.Save(); dialog.Close(); Build();
+                Pref.ThemeIndex = themeIndex; Pref.Locked = locked.IsChecked == true; Pref.Opacity = opacity.Value / 100; Opacity = Pref.Opacity; store.Save(); dialog.Close(); Build();
             }
             catch (Exception ex) { MessageBox.Show(dialog, "设置未能保存：" + ex.Message, "拾日"); }
         }, true));
