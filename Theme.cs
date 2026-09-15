@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -33,6 +34,11 @@ public static class Theme
 
     public static ThemeSpec Current = Themes[0];
     public static bool IsLight => Current.Light;
+    public static readonly string[] RoleNames = { "背景", "面板", "格子", "文字", "次要文字", "线条", "强调" };
+
+    // 默认色快照，用于「恢复默认」。
+    public static readonly ThemeSpec[] Defaults =
+        Themes.Select(t => new ThemeSpec(t.Name, t.Light, t.Bg, t.Panel, t.Cell, t.Ink, t.Muted, t.Line, t.Accent)).ToArray();
 
     public static readonly string[] Colors = { "#A8D9EF", "#B8D7AD", "#EEC681", "#D7B4E8", "#ECAFA9" };
     public static readonly string[] ColorNames = { "日常", "学习", "工作", "生活", "重要" };
@@ -41,13 +47,65 @@ public static class Theme
     public static int ClampIndex(int index) => index < 0 ? 0 : Math.Min(index, Themes.Length - 1);
     public static void Set(int index)
     {
-        Current = Themes[ClampIndex(index)];
-        Bg = Brush(Current.Bg); Panel = Brush(Current.Panel); Cell = Brush(Current.Cell);
-        Ink = Brush(Current.Ink); Muted = Brush(Current.Muted); Line = Brush(Current.Line);
-        Accent = Brush(Current.Accent);
+        index = ClampIndex(index);
+        Current = Themes[index];
+        Apply(Current);
+    }
+    private static void Apply(ThemeSpec s)
+    {
+        Bg = Brush(s.Bg); Panel = Brush(s.Panel); Cell = Brush(s.Cell);
+        Ink = Brush(s.Ink); Muted = Brush(s.Muted); Line = Brush(s.Line);
+        Accent = Brush(s.Accent);
     }
     // 兼容旧调用：仅按明暗切换。
     public static void Set(bool light) => Set(light ? 1 : 0);
+
+    public static bool IsHexColor(string hex)
+    {
+        if (string.IsNullOrEmpty(hex) || hex.Length != 7 || hex[0] != '#') return false;
+        try { _ = ColorConverter.ConvertFromString(hex); return true; }
+        catch { return false; }
+    }
+    public static string[] GetColors(int index)
+    {
+        var t = Themes[ClampIndex(index)];
+        return new[] { t.Bg, t.Panel, t.Cell, t.Ink, t.Muted, t.Line, t.Accent };
+    }
+    // 应用 7 个自定义色到指定主题。colors 必须与 RoleNames 顺序一致。
+    public static bool TryApplyColors(int index, string[] colors, out string error)
+    {
+        index = ClampIndex(index);
+        error = "";
+        if (colors == null || colors.Length != 7) { error = "自定义颜色需要 7 项。"; return false; }
+        for (int i = 0; i < 7; i++)
+            if (!IsHexColor(colors[i])) { error = "「" + RoleNames[i] + "」颜色无效，应为 #RRGGBB。"; return false; }
+        var t = Themes[index];
+        t.Bg = colors[0]; t.Panel = colors[1]; t.Cell = colors[2];
+        t.Ink = colors[3]; t.Muted = colors[4]; t.Line = colors[5]; t.Accent = colors[6];
+        Apply(t);
+        if (index == ClampIndex(ThemeSpecIndex(t))) Current = t;
+        return true;
+    }
+    private static int ThemeSpecIndex(ThemeSpec s) { for (int i = 0; i < Themes.Length; i++) if (Themes[i] == s) return i; return 0; }
+    public static void RestoreDefaultColors(int index)
+    {
+        index = ClampIndex(index);
+        var src = Defaults[index];
+        var dst = Themes[index];
+        dst.Bg = src.Bg; dst.Panel = src.Panel; dst.Cell = src.Cell;
+        dst.Ink = src.Ink; dst.Muted = src.Muted; dst.Line = src.Line; dst.Accent = src.Accent;
+        Apply(dst);
+    }
+    public static string[] DefaultColors(int index)
+    {
+        var d = Defaults[ClampIndex(index)];
+        return new[] { d.Bg, d.Panel, d.Cell, d.Ink, d.Muted, d.Line, d.Accent };
+    }
+    public static bool IsDefaultColors(int index)
+    {
+        var c = GetColors(index);
+        return c.SequenceEqual(DefaultColors(index));
+    }
 
     public static TextBlock Text(string text, double size = 14, Brush? color = null) => new()
     {
